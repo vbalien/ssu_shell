@@ -11,10 +11,31 @@
 #define MAX_TOKEN_SIZE 64
 // 최대 토큰 개수
 #define MAX_NUM_TOKENS 64
+// 내장 명령어 개수
+#define BUILTIN_SIZE (sizeof(builtin_command) / sizeof(char *))
 
+// 한줄 실행 함수
 void do_line(char **tokens);
 // 프로세스 생성하는 함수
-void spawn(int argc, char **argv, int infd, int outfd);
+void spawn(char **argv, int infd, int outfd);
+
+// 내장 명령어들
+// cd 명령어
+void ssush_cd(char **argv, int infd, int outfd);
+// exit 명령어
+void ssush_exit(char **argv, int infd, int outfd);
+// pps 명령어
+void ssush_pps(char **argv, int infd, int outfd);
+// ttop 명령어
+void ssush_ttop(char **argv, int infd, int outfd);
+
+char *builtin_command[] = {
+    "cd", "exit", "pps", "ttop"};
+void (*builtin_func[])(char **, int, int) = {
+    &ssush_cd,
+    &ssush_exit,
+    &ssush_pps,
+    &ssush_ttop};
 
 typedef struct proc
 {
@@ -169,7 +190,7 @@ void do_line(char **tokens)
         perror("pipe");
       free(tokens[i]);
       tokens[i] = NULL;
-      spawn(argc, argv, procIndex == 0 ? -1 : procs[procIndex - 1]->pipefd[0], procs[procIndex]->pipefd[1]);
+      spawn(argv, procIndex == 0 ? -1 : procs[procIndex - 1]->pipefd[0], procs[procIndex]->pipefd[1]);
       argv = tokens + i + 1;
       argc = 0;
       procIndex++;
@@ -177,7 +198,7 @@ void do_line(char **tokens)
     }
     argc++;
   }
-  spawn(argc, argv, procIndex == 0 ? -1 : procs[procIndex - 1]->pipefd[0], -1);
+  spawn(argv, procIndex == 0 ? -1 : procs[procIndex - 1]->pipefd[0], -1);
 
   for (i = 0; i < procNum; ++i)
     free(procs[i]);
@@ -185,10 +206,18 @@ void do_line(char **tokens)
 }
 
 // 프로세스 생성하는 함수
-void spawn(int argc, char **argv, int infd, int outfd)
+void spawn(char **argv, int infd, int outfd)
 {
   pid_t pid;
   int status;
+  int i;
+
+  for (i = 0; i < BUILTIN_SIZE; i++)
+    if (strcmp(builtin_command[i], argv[0]) == 0)
+    {
+      builtin_func[i](argv, infd, outfd);
+      return;
+    }
 
   pid = fork();
   if (pid == 0)
@@ -198,12 +227,13 @@ void spawn(int argc, char **argv, int infd, int outfd)
       dup2(infd, STDIN_FILENO);
     if (outfd != -1)
       dup2(outfd, STDOUT_FILENO);
+
     if (execvp(argv[0], argv) == -1)
       fprintf(stderr, "SSUShell : Incorrect command\n");
     exit(EXIT_FAILURE);
   }
   else if (pid < 0)
-    perror("ssu_shell");
+    perror("SSUShell");
   else
   {
     // parent
@@ -217,4 +247,24 @@ void spawn(int argc, char **argv, int infd, int outfd)
     if (outfd != -1)
       close(outfd);
   }
+}
+
+void ssush_cd(char **argv, int infd, int outfd)
+{
+  if (chdir(argv[1]) == -1)
+    perror("SSUShell");
+}
+void ssush_exit(char **argv, int infd, int outfd)
+{
+  exit(0);
+}
+void ssush_pps(char **argv, int infd, int outfd)
+{
+  strcpy(argv[0], "./pps");
+  spawn(argv, infd, outfd);
+}
+void ssush_ttop(char **argv, int infd, int outfd)
+{
+  strcpy(argv[0], "./ttop");
+  spawn(argv, infd, outfd);
 }
