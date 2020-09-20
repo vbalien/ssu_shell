@@ -8,10 +8,10 @@ ssu_shell: ssu_shell.c
 	${CC} ssu_shell.c -o ssu_shell $(CFLAGS)
 
 pps: pps.c
-	${CC} pps.c -o pps $(CFLAGS)
+	${CC} pps.c -o pps $(CFLAGS) -lncurses
 
 ttop: ttop.c
-	${CC} ttop.c -o ttop $(CFLAGS)
+	${CC} ttop.c -o ttop $(CFLAGS) -lncurses 
 
 clean:
 	rm ssu_shell ttop pps
