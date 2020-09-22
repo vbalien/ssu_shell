@@ -11,10 +11,16 @@ typedef struct procstat
   unsigned long time, stime;
   uid_t uid;
   char username[64];
+  long nice;
+  int session;
+  long num_threads;
+  int pgrp;
+  int tpgid;
 } procstat_t;
 
 void print_ps(bool aflag, bool uflag, bool xflag);
 bool isdigitstr(const char *str);
 char *getttyfromproc(const char *pid);
-bool getstat(procstat_t *procstat, const char *pid);
+void getstat(procstat_t *procstat, const char *pid);
+void getstatus(char *result, const char *pid, const char *field);
 void timeformat(char *result, unsigned long time, bool longFormat);

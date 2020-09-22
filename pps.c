@@ -76,17 +76,10 @@ void print_ps(bool aflag, bool uflag, bool xflag)
         continue;
 
     stat[count] = (procstat_t *)malloc(sizeof(procstat_t));
-    if (getstat(stat[count], pid) == false)
-      continue;
+    getstat(stat[count], pid);
 
     if (!aflag && stat[count]->uid != getuid())
       continue;
-
-    if (strchr(stat[count]->stat, 'I') != NULL)
-    {
-      free(stat[count]);
-      continue;
-    }
 
     if (strlen(pid) > pidwidth)
       pidwidth = strlen(pid);
@@ -106,13 +99,13 @@ void print_ps(bool aflag, bool uflag, bool xflag)
       printf("%-8s %*d %4s %4s %6d %5d %-8s %-4s %-5s %6s %s\n",
              stat[i]->username,
              pidwidth, stat[i]->pid,
-             "0.0", // TODO
-             "0.0", // TODO
-             0,     // TODO
-             0,     // TODO
+             "0.0", // TODO %CPU
+             "0.0", // TODO %MEM
+             0,     // TODO VSZ
+             0,     // TODO RSS
              stat[i]->tty,
              stat[i]->stat,
-             "00:00", // TODO
+             "00:00", // TODO START
              tmp,
              stat[i]->command);
     }
@@ -165,14 +158,16 @@ char *getttyfromproc(const char *pid)
   return tty;
 }
 
-bool getstat(procstat_t *result, const char *pid)
+void getstat(procstat_t *result, const char *pid)
 {
   FILE *fp;
   char tmp[1024];
   int i;
   char *tty;
+  int ttyfd;
   struct passwd *pws;
   struct stat st;
+  size_t readsize;
 
   bzero(result, sizeof(procstat_t));
 
@@ -190,29 +185,76 @@ bool getstat(procstat_t *result, const char *pid)
   fp = fopen(tmp, "r");
   // 3번째 필드까지 읽음
   fscanf(fp, "%d%s%s", &result->pid, tmp, &result->stat);
-
   // cmd의 양쪽 괄호를 제거
   strcpy(result->cmd, tmp + 1);
   result->cmd[strlen(result->cmd) - 1] = 0;
 
-  // 14번 필드인 stime을 얻기 위해 10번 필드를 건너뜀
-  for (i = 0; i < 11; i++)
+  // Lock State 구함
+  getstatus(tmp, pid, "VmLck");
+  if (strlen(tmp) != 0)
+  {
+    sscanf(tmp, "%d", &i);
+    if (i != 0)
+      strcat(result->stat, "L");
+  }
+
+  // (5) pgrp를 얻기 위해 1번 필드를 건너뜀
+  for (i = 0; i < 2; i++)
+    fscanf(fp, "%d", &result->pgrp);
+
+  // (6) session
+  fscanf(fp, "%d", &result->session);
+  if (result->session == result->pid)
+    strcat(result->stat, "s");
+
+  // (8) tpgrp
+  for (i = 0; i < 2; i++)
+    fscanf(fp, "%d", &result->tpgid);
+
+  // (14) stime을 얻기 위해 5번 필드를 건너뜀
+  for (i = 0; i < 6; i++)
     fscanf(fp, "%lu", &result->stime);
-  // cutime 읽음
+  // (15) cutime 읽음
   fscanf(fp, "%lu", &result->time);
+
+  // (19) nice를 얻기 위해 3번 필드를 건너뜀
+  for (i = 0; i < 4; i++)
+    fscanf(fp, "%ld", &result->nice);
+
+  // (20) num_threads
+  fscanf(fp, "%ld", &result->num_threads);
+  if (result->num_threads > 1)
+    strcat(result->stat, "l");
+
+  if (result->nice < 0)
+    strcat(result->stat, "<");
+  else if (result->nice > 0)
+    strcat(result->stat, "N");
+
   fclose(fp);
 
   // cmdline을 읽음
   sprintf(tmp, "/proc/%s/cmdline", pid);
   fp = fopen(tmp, "r");
-  fread(result->command, 1, 1024, fp);
+  readsize = fread(result->command, 1, 1024, fp);
+  // NULL을 공백으로 치환
+  for (i = 0; i < readsize; ++i)
+    if (result->command[i] == 0)
+      result->command[i] = ' ';
+
   fclose(fp);
 
+  if (strlen(result->command) == 0)
+    sprintf(result->command, "[%s]", result->cmd);
+
+  if (result->tpgid != -1)
+    strcat(result->stat, "+");
+
+  // username얻기
   if ((pws = getpwuid(st.st_uid)) != NULL)
     strcpy(result->username, pws->pw_name);
   else
-    return false;
-  return true;
+    sprintf(result->username, "%d", st.st_uid);
 }
 
 void timeformat(char *result, unsigned long time, bool longFormat)
@@ -225,4 +267,33 @@ void timeformat(char *result, unsigned long time, bool longFormat)
             time % 60);
   else
     sprintf(result, "%01lu:%02lu", (time / 60) % 60, time % 60);
+}
+
+void getstatus(char *result, const char *pid, const char *field)
+{
+  char path[1024];
+  char name[1024];
+  char value[1024];
+  FILE *fp;
+  size_t read;
+  char *line = NULL;
+  size_t len = 0;
+  int i;
+
+  bzero(result, strlen(result));
+  sprintf(path, "/proc/%s/status", pid);
+  fp = fopen(path, "r");
+  while ((read = getline(&line, &len, fp)) != -1)
+  {
+    sscanf(line, "%[^:]:%[^\n]", name, value);
+    if (strcmp(field, name) == 0)
+    {
+      for (i = 0; value[i] == '\t' || value[i] == ' '; ++i)
+        ;
+      strcpy(result, value + i);
+      free(line);
+      return;
+    }
+  }
+  free(line);
 }
