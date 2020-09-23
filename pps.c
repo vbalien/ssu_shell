@@ -13,15 +13,16 @@
 #include <time.h>
 #include <math.h>
 
+int width;
+
 int main(int argc, char *argv[])
 {
   int i;
   bool aflag = false, uflag = false, xflag = false;
-  int x, y;
 
   // 스크린 사이즈를 구함
   initscr();
-  getmaxyx(stdscr, y, x);
+  width = getmaxx(stdscr);
   endwin();
 
   // option 파싱
@@ -59,6 +60,7 @@ void print_ps(bool aflag, bool uflag, bool xflag)
   time_t starttime;
   struct tm *starttm;
   long memtotal;
+  char row[1024 * 1024];
 
   getmeminfo(tmp, "MemTotal");
   sscanf(tmp, "%ld", &memtotal);
@@ -90,7 +92,10 @@ void print_ps(bool aflag, bool uflag, bool xflag)
     getstat(stat[count], pid);
 
     if (!aflag && stat[count]->uid != getuid())
+    {
+      free(stat[count]);
       continue;
+    }
 
     if (strlen(pid) > pidwidth)
       pidwidth = strlen(pid);
@@ -104,7 +109,9 @@ void print_ps(bool aflag, bool uflag, bool xflag)
   time(&now);
   if (uflag)
   {
-    printf("%-8s %*s %4s %4s %6s %5s %-8s %-4s %-5s %6s %s\n", "USER", pidwidth, "PID", "%CPU", "%MEM", "VSZ", "RSS", "TTY", "STAT", "START", "TIME", "COMMAND");
+    sprintf(row, "%-8s %*s %4s %4s %6s %5s %-8s %-4s %-5s %6s %s\n", "USER", pidwidth, "PID", "%CPU", "%MEM", "VSZ", "RSS", "TTY", "STAT", "START", "TIME", "COMMAND");
+    row[width] = 0;
+    printf("%s", row);
     for (i = 0; i < count; ++i)
     {
       timeformat(cputime, stat[i]->utime + stat[i]->stime, false);
@@ -114,19 +121,21 @@ void print_ps(bool aflag, bool uflag, bool xflag)
         strftime(start, 64, "%H:%M", starttm);
       else
         strftime(start, 64, "%b%d", starttm);
-      printf("%-8s %*d %4.1lf %4.1lf %6d %5d %-8s %-4s %-5s %6s %s\n",
-             stat[i]->username,                                                                         // USER
-             pidwidth, stat[i]->pid,                                                                    // PID
-             floor(cpupercent(uptime(), stat[i]->utime, stat[i]->stime, stat[i]->starttime) * 10) / 10, // %CPU
-             floor((double)stat[i]->rss / memtotal * 100 * 10) / 10,                                    // %MEM
-             stat[i]->vsz,                                                                              // VSZ
-             stat[i]->rss,                                                                              // RSS
-             stat[i]->tty,                                                                              // TTY
-             stat[i]->stat,                                                                             // STAT
-             start,                                                                                     // START
-             cputime,                                                                                   // TIME
-             stat[i]->command                                                                           // COMMAND
+      sprintf(row, "%-8s %*d %4.1lf %4.1lf %6d %5d %-8s %-4s %-5s %6s %s\n",
+              stat[i]->username,                                                                         // USER
+              pidwidth, stat[i]->pid,                                                                    // PID
+              floor(cpupercent(uptime(), stat[i]->utime, stat[i]->stime, stat[i]->starttime) * 10) / 10, // %CPU
+              floor((double)stat[i]->rss / memtotal * 100 * 10) / 10,                                    // %MEM
+              stat[i]->vsz,                                                                              // VSZ
+              stat[i]->rss,                                                                              // RSS
+              stat[i]->tty,                                                                              // TTY
+              stat[i]->stat,                                                                             // STAT
+              start,                                                                                     // START
+              cputime,                                                                                   // TIME
+              stat[i]->command                                                                           // COMMAND
       );
+      row[width] = 0;
+      printf("%s", row);
     }
   }
   else if (aflag || xflag)
