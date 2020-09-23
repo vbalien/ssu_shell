@@ -385,6 +385,7 @@ time_t uptime()
 
   fp = fopen("/proc/uptime", "r");
   fread(tmp, 1, 1024, fp);
+  fclose(fp);
   sscanf(tmp, "%ld", &result);
   return result;
 }

@@ -371,7 +371,7 @@ void readproc()
     fp = fopen(tmp, "r");
 
     if (fp == NULL)
-      return;
+      continue;
 
     // username얻기
     if ((pws = getpwuid(st.st_uid)) != NULL)
@@ -456,6 +456,7 @@ time_t uptime()
 
   fp = fopen("/proc/uptime", "r");
   fread(tmp, 1, 1024, fp);
+  fclose(fp);
   sscanf(tmp, "%ld", &result);
   return result;
 }
