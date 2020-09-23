@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <pwd.h>
 #include <sys/stat.h>
+#include <time.h>
 
 int main(int argc, char *argv[])
 {
@@ -51,6 +52,11 @@ void print_ps(bool aflag, bool uflag, bool xflag)
   int count = 0;
   char tmp[1024];
   int pidwidth = 0;
+  char cputime[64];
+  char start[64];
+  time_t now;
+  time_t starttime;
+  struct tm *starttm;
 
   // 현재 tty를 가져옴
   strcpy(tty_self, getttyfromproc("self"));
@@ -90,24 +96,32 @@ void print_ps(bool aflag, bool uflag, bool xflag)
   if (pidwidth < 5)
     pidwidth = 5;
 
+  time(&now);
   if (uflag)
   {
     printf("%-8s %*s %4s %4s %6s %5s %-8s %-4s %-5s %6s %s\n", "USER", pidwidth, "PID", "%CPU", "%MEM", "VSZ", "RSS", "TTY", "STAT", "START", "TIME", "COMMAND");
     for (i = 0; i < count; ++i)
     {
-      timeformat(tmp, stat[i]->time + stat[i]->stime, false);
+      timeformat(cputime, stat[i]->time + stat[i]->stime, false);
+      starttime = now - (uptime() - (stat[i]->starttime / sysconf(_SC_CLK_TCK)));
+      starttm = localtime(&starttime);
+      if (now - starttime < 86400)
+        strftime(start, 64, "%H:%M", starttm);
+      else
+        strftime(start, 64, "%b%d", starttm);
       printf("%-8s %*d %4s %4s %6d %5d %-8s %-4s %-5s %6s %s\n",
-             stat[i]->username,
-             pidwidth, stat[i]->pid,
-             "0.0", // TODO %CPU
-             "0.0", // TODO %MEM
-             0,     // TODO VSZ
-             0,     // TODO RSS
-             stat[i]->tty,
-             stat[i]->stat,
-             "00:00", // TODO START
-             tmp,
-             stat[i]->command);
+             stat[i]->username,      // USER
+             pidwidth, stat[i]->pid, // PID
+             "0.0",                  // TODO %CPU
+             "0.0",                  // TODO %MEM
+             stat[i]->vsz,           // VSZ
+             stat[i]->rss,           // RSS
+             stat[i]->tty,           // TTY
+             stat[i]->stat,          // STAT
+             start,                  // START
+             cputime,                // TIME
+             stat[i]->command        // COMMAND
+      );
     }
   }
   else if (aflag || xflag)
@@ -115,8 +129,8 @@ void print_ps(bool aflag, bool uflag, bool xflag)
     printf("%*s %-8s %-6s %4s %s\n", pidwidth, "PID", "TTY", "STAT", "TIME", "COMMAND");
     for (i = 0; i < count; ++i)
     {
-      timeformat(tmp, stat[i]->time + stat[i]->stime, false);
-      printf("%*d %-8s %-6s %4s %s\n", pidwidth, stat[i]->pid, stat[i]->tty, stat[i]->stat, tmp, stat[i]->command);
+      timeformat(cputime, stat[i]->time + stat[i]->stime, false);
+      printf("%*d %-8s %-6s %4s %s\n", pidwidth, stat[i]->pid, stat[i]->tty, stat[i]->stat, cputime, stat[i]->command);
     }
   }
   else
@@ -124,8 +138,8 @@ void print_ps(bool aflag, bool uflag, bool xflag)
     printf("%*s %-8s %8s %s\n", pidwidth, "PID", "TTY", "TIME", "CMD");
     for (i = 0; i < count; ++i)
     {
-      timeformat(tmp, stat[i]->time + stat[i]->stime, true);
-      printf("%*d %-8s %8s %s\n", pidwidth, stat[i]->pid, stat[i]->tty, tmp, stat[i]->cmd);
+      timeformat(cputime, stat[i]->time + stat[i]->stime, true);
+      printf("%*d %-8s %8s %s\n", pidwidth, stat[i]->pid, stat[i]->tty, cputime, stat[i]->cmd);
     }
   }
 }
@@ -198,6 +212,16 @@ void getstat(procstat_t *result, const char *pid)
       strcat(result->stat, "L");
   }
 
+  // VSZ 구함
+  getstatus(tmp, pid, "VmSize");
+  if (strlen(tmp) != 0)
+    sscanf(tmp, "%ld", &result->vsz);
+
+  // RSS 구함
+  getstatus(tmp, pid, "VmRSS");
+  if (strlen(tmp) != 0)
+    sscanf(tmp, "%ld", &result->rss);
+
   // (5) pgrp를 얻기 위해 1번 필드를 건너뜀
   for (i = 0; i < 2; i++)
     fscanf(fp, "%d", &result->pgrp);
@@ -214,6 +238,7 @@ void getstat(procstat_t *result, const char *pid)
   // (14) stime을 얻기 위해 5번 필드를 건너뜀
   for (i = 0; i < 6; i++)
     fscanf(fp, "%lu", &result->stime);
+
   // (15) cutime 읽음
   fscanf(fp, "%lu", &result->time);
 
@@ -223,9 +248,16 @@ void getstat(procstat_t *result, const char *pid)
 
   // (20) num_threads
   fscanf(fp, "%ld", &result->num_threads);
+
+  // thread가 2개 이상이면 멀티쓰레드 state추가
   if (result->num_threads > 1)
     strcat(result->stat, "l");
 
+  // (22) tpgrp
+  for (i = 0; i < 2; i++)
+    fscanf(fp, "%d", &result->starttime);
+
+  // nice값 비교후 stat 추가
   if (result->nice < 0)
     strcat(result->stat, "<");
   else if (result->nice > 0)
@@ -247,6 +279,7 @@ void getstat(procstat_t *result, const char *pid)
   if (strlen(result->command) == 0)
     sprintf(result->command, "[%s]", result->cmd);
 
+  /// tpgid가 있으면 fg프로세스임
   if (result->tpgid != -1)
     strcat(result->stat, "+");
 
@@ -296,4 +329,16 @@ void getstatus(char *result, const char *pid, const char *field)
     }
   }
   free(line);
+}
+
+time_t uptime()
+{
+  FILE *fp;
+  char tmp[1024];
+  time_t result;
+
+  fp = fopen("/proc/uptime", "r");
+  fread(tmp, 1, 1024, fp);
+  sscanf(tmp, "%ld", &result);
+  return result;
 }

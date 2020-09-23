@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <sys/types.h>
+#include <time.h>
 
 typedef struct procstat
 {
@@ -16,6 +17,9 @@ typedef struct procstat
   long num_threads;
   int pgrp;
   int tpgid;
+  long vsz;
+  long rss;
+  unsigned long starttime;
 } procstat_t;
 
 void print_ps(bool aflag, bool uflag, bool xflag);
@@ -24,3 +28,4 @@ char *getttyfromproc(const char *pid);
 void getstat(procstat_t *procstat, const char *pid);
 void getstatus(char *result, const char *pid, const char *field);
 void timeformat(char *result, unsigned long time, bool longFormat);
+time_t uptime();
