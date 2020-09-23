@@ -11,6 +11,7 @@
 #include <pwd.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <math.h>
 
 int main(int argc, char *argv[])
 {
@@ -57,6 +58,10 @@ void print_ps(bool aflag, bool uflag, bool xflag)
   time_t now;
   time_t starttime;
   struct tm *starttm;
+  long memtotal;
+
+  getmeminfo(tmp, "MemTotal");
+  sscanf(tmp, "%ld", &memtotal);
 
   // 현재 tty를 가져옴
   strcpy(tty_self, getttyfromproc("self"));
@@ -109,18 +114,18 @@ void print_ps(bool aflag, bool uflag, bool xflag)
         strftime(start, 64, "%H:%M", starttm);
       else
         strftime(start, 64, "%b%d", starttm);
-      printf("%-8s %*d %4s %4s %6d %5d %-8s %-4s %-5s %6s %s\n",
-             stat[i]->username,      // USER
-             pidwidth, stat[i]->pid, // PID
-             "0.0",                  // TODO %CPU
-             "0.0",                  // TODO %MEM
-             stat[i]->vsz,           // VSZ
-             stat[i]->rss,           // RSS
-             stat[i]->tty,           // TTY
-             stat[i]->stat,          // STAT
-             start,                  // START
-             cputime,                // TIME
-             stat[i]->command        // COMMAND
+      printf("%-8s %*d %4s %4.1lf %6d %5d %-8s %-4s %-5s %6s %s\n",
+             stat[i]->username,                                      // USER
+             pidwidth, stat[i]->pid,                                 // PID
+             "0.0",                                                  // TODO %CPU
+             floor((double)stat[i]->rss / memtotal * 100 * 10) / 10, // %MEM
+             stat[i]->vsz,                                           // VSZ
+             stat[i]->rss,                                           // RSS
+             stat[i]->tty,                                           // TTY
+             stat[i]->stat,                                          // STAT
+             start,                                                  // START
+             cputime,                                                // TIME
+             stat[i]->command                                        // COMMAND
       );
     }
   }
@@ -316,6 +321,33 @@ void getstatus(char *result, const char *pid, const char *field)
   bzero(result, strlen(result));
   sprintf(path, "/proc/%s/status", pid);
   fp = fopen(path, "r");
+  while ((read = getline(&line, &len, fp)) != -1)
+  {
+    sscanf(line, "%[^:]:%[^\n]", name, value);
+    if (strcmp(field, name) == 0)
+    {
+      for (i = 0; value[i] == '\t' || value[i] == ' '; ++i)
+        ;
+      strcpy(result, value + i);
+      free(line);
+      return;
+    }
+  }
+  free(line);
+}
+
+void getmeminfo(char *result, const char *field)
+{
+  char name[1024];
+  char value[1024];
+  FILE *fp;
+  size_t read;
+  char *line = NULL;
+  size_t len = 0;
+  int i;
+
+  bzero(result, strlen(result));
+  fp = fopen("/proc/meminfo", "r");
   while ((read = getline(&line, &len, fp)) != -1)
   {
     sscanf(line, "%[^:]:%[^\n]", name, value);

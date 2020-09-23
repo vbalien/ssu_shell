@@ -27,5 +27,6 @@ bool isdigitstr(const char *str);
 char *getttyfromproc(const char *pid);
 void getstat(procstat_t *procstat, const char *pid);
 void getstatus(char *result, const char *pid, const char *field);
+void getmeminfo(char *result, const char *field);
 void timeformat(char *result, unsigned long time, bool longFormat);
 time_t uptime();
