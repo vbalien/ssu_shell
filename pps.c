@@ -220,10 +220,7 @@ void getstat(procstat_t *result, const char *pid)
 
   fp = fopen(tmp, "r");
   // 3번째 필드까지 읽음
-  fscanf(fp, "%d%s%s", &result->pid, tmp, &result->stat);
-  // cmd의 양쪽 괄호를 제거
-  strcpy(result->cmd, tmp + 1);
-  result->cmd[strlen(result->cmd) - 1] = 0;
+  fscanf(fp, "%d (%[^)]%*c%s", &result->pid, result->cmd, &result->stat);
 
   // Lock State 구함
   getstatus(tmp, pid, "VmLck");
@@ -391,6 +388,7 @@ time_t uptime()
   sscanf(tmp, "%ld", &result);
   return result;
 }
+
 double cpupercent(time_t uptime, unsigned long utime, unsigned long stime, unsigned long starttime)
 {
   unsigned long total_time = (utime + stime) / sysconf(_SC_CLK_TCK);   // CPU사용 시간
