@@ -107,25 +107,25 @@ void print_ps(bool aflag, bool uflag, bool xflag)
     printf("%-8s %*s %4s %4s %6s %5s %-8s %-4s %-5s %6s %s\n", "USER", pidwidth, "PID", "%CPU", "%MEM", "VSZ", "RSS", "TTY", "STAT", "START", "TIME", "COMMAND");
     for (i = 0; i < count; ++i)
     {
-      timeformat(cputime, stat[i]->time + stat[i]->stime, false);
+      timeformat(cputime, stat[i]->utime + stat[i]->stime, false);
       starttime = now - (uptime() - (stat[i]->starttime / sysconf(_SC_CLK_TCK)));
       starttm = localtime(&starttime);
       if (now - starttime < 86400)
         strftime(start, 64, "%H:%M", starttm);
       else
         strftime(start, 64, "%b%d", starttm);
-      printf("%-8s %*d %4s %4.1lf %6d %5d %-8s %-4s %-5s %6s %s\n",
-             stat[i]->username,                                      // USER
-             pidwidth, stat[i]->pid,                                 // PID
-             "0.0",                                                  // TODO %CPU
-             floor((double)stat[i]->rss / memtotal * 100 * 10) / 10, // %MEM
-             stat[i]->vsz,                                           // VSZ
-             stat[i]->rss,                                           // RSS
-             stat[i]->tty,                                           // TTY
-             stat[i]->stat,                                          // STAT
-             start,                                                  // START
-             cputime,                                                // TIME
-             stat[i]->command                                        // COMMAND
+      printf("%-8s %*d %4.1lf %4.1lf %6d %5d %-8s %-4s %-5s %6s %s\n",
+             stat[i]->username,                                                                         // USER
+             pidwidth, stat[i]->pid,                                                                    // PID
+             floor(cpupercent(uptime(), stat[i]->utime, stat[i]->stime, stat[i]->starttime) * 10) / 10, // %CPU
+             floor((double)stat[i]->rss / memtotal * 100 * 10) / 10,                                    // %MEM
+             stat[i]->vsz,                                                                              // VSZ
+             stat[i]->rss,                                                                              // RSS
+             stat[i]->tty,                                                                              // TTY
+             stat[i]->stat,                                                                             // STAT
+             start,                                                                                     // START
+             cputime,                                                                                   // TIME
+             stat[i]->command                                                                           // COMMAND
       );
     }
   }
@@ -134,7 +134,7 @@ void print_ps(bool aflag, bool uflag, bool xflag)
     printf("%*s %-8s %-6s %4s %s\n", pidwidth, "PID", "TTY", "STAT", "TIME", "COMMAND");
     for (i = 0; i < count; ++i)
     {
-      timeformat(cputime, stat[i]->time + stat[i]->stime, false);
+      timeformat(cputime, stat[i]->utime + stat[i]->stime, false);
       printf("%*d %-8s %-6s %4s %s\n", pidwidth, stat[i]->pid, stat[i]->tty, stat[i]->stat, cputime, stat[i]->command);
     }
   }
@@ -143,7 +143,7 @@ void print_ps(bool aflag, bool uflag, bool xflag)
     printf("%*s %-8s %8s %s\n", pidwidth, "PID", "TTY", "TIME", "CMD");
     for (i = 0; i < count; ++i)
     {
-      timeformat(cputime, stat[i]->time + stat[i]->stime, true);
+      timeformat(cputime, stat[i]->utime + stat[i]->stime, true);
       printf("%*d %-8s %8s %s\n", pidwidth, stat[i]->pid, stat[i]->tty, cputime, stat[i]->cmd);
     }
   }
@@ -236,16 +236,16 @@ void getstat(procstat_t *result, const char *pid)
   if (result->session == result->pid)
     strcat(result->stat, "s");
 
-  // (8) tpgrp
+  // (8) tpgid
   for (i = 0; i < 2; i++)
     fscanf(fp, "%d", &result->tpgid);
 
-  // (14) stime을 얻기 위해 5번 필드를 건너뜀
+  // (14) utime을 얻기 위해 5번 필드를 건너뜀
   for (i = 0; i < 6; i++)
-    fscanf(fp, "%lu", &result->stime);
+    fscanf(fp, "%lu", &result->utime);
 
-  // (15) cutime 읽음
-  fscanf(fp, "%lu", &result->time);
+  // (15) stime 읽음
+  fscanf(fp, "%lu", &result->stime);
 
   // (19) nice를 얻기 위해 3번 필드를 건너뜀
   for (i = 0; i < 4; i++)
@@ -258,7 +258,7 @@ void getstat(procstat_t *result, const char *pid)
   if (result->num_threads > 1)
     strcat(result->stat, "l");
 
-  // (22) tpgrp
+  // (22) starttime
   for (i = 0; i < 2; i++)
     fscanf(fp, "%d", &result->starttime);
 
@@ -373,4 +373,13 @@ time_t uptime()
   fread(tmp, 1, 1024, fp);
   sscanf(tmp, "%ld", &result);
   return result;
+}
+double cpupercent(time_t uptime, unsigned long utime, unsigned long stime, unsigned long starttime)
+{
+  unsigned long total_time = (utime + stime) / sysconf(_SC_CLK_TCK);   // CPU사용 시간
+  unsigned long seconds = uptime - (starttime / sysconf(_SC_CLK_TCK)); // 프로세스가 실행된 이후 시간
+  if (seconds > 0)
+    return ((double)total_time / seconds) * 100;
+  else
+    return 0.;
 }

@@ -9,7 +9,7 @@ typedef struct procstat
   char cmd[1024];
   char command[1024];
   char stat[8];
-  unsigned long time, stime;
+  unsigned long utime, stime;
   uid_t uid;
   char username[64];
   long nice;
@@ -29,4 +29,5 @@ void getstat(procstat_t *procstat, const char *pid);
 void getstatus(char *result, const char *pid, const char *field);
 void getmeminfo(char *result, const char *field);
 void timeformat(char *result, unsigned long time, bool longFormat);
+double cpupercent(time_t uptime, unsigned long utime, unsigned long stime, unsigned long starttime);
 time_t uptime();
