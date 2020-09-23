@@ -260,6 +260,7 @@ void draw_table()
   int maxrows;
   int x;
   proc_t *cur;
+  char row[1024 * 1024];
 
   maxrows = h - 7;
 
@@ -267,8 +268,10 @@ void draw_table()
   attroff(A_STANDOUT);
   attron(A_BLINK);
   hline(' ', w);
-  printw("%8s %-8s %4s %3s %7s %7s %7s %c %5s %5s %9s %s",
-         "PID", "USER", "PR", "NI", "VIRT", "RES", "SHR", 'S', "%CPU", "%MEM", "TIME+", "COMMAND");
+  sprintf(row, "%8s %-8s %4s %3s %7s %7s %7s %c %5s %5s %9s %s",
+          "PID", "USER", "PR", "NI", "VIRT", "RES", "SHR", 'S', "%CPU", "%MEM", "TIME+", "COMMAND");
+  row[w - 1] = 0;
+  printw("%s", row);
   nextline();
   attroff(A_BLINK);
   attron(A_STANDOUT);
@@ -283,19 +286,21 @@ void draw_table()
   {
     hline(' ', w);
     cur = procs[offset + i];
-    printw("%8d %-8s %4ld %3ld %7ld %7ld %7ld %c %5.1f %5.1f %9s %s",
-           cur->pid,
-           cur->username,
-           cur->priority,
-           cur->nice,
-           cur->vsize,
-           cur->rss,
-           cur->shr,
-           cur->stat[0],
-           cur->cpu,
-           cur->mem,
-           cur->time,
-           cur->command);
+    sprintf(row, "%8d %-8s %4ld %3ld %7ld %7ld %7ld %c %5.1f %5.1f %9s %s",
+            cur->pid,
+            cur->username,
+            cur->priority,
+            cur->nice,
+            cur->vsize,
+            cur->rss,
+            cur->shr,
+            cur->stat[0],
+            cur->cpu,
+            cur->mem,
+            cur->time,
+            cur->command);
+    row[w - 1] = 0;
+    printw("%s", row);
     nextline();
   }
 }
