@@ -140,20 +140,28 @@ void print_ps(bool aflag, bool uflag, bool xflag)
   }
   else if (aflag || xflag)
   {
-    printf("%*s %-8s %-6s %4s %s\n", pidwidth, "PID", "TTY", "STAT", "TIME", "COMMAND");
+    sprintf(row, "%*s %-8s %-6s %4s %s\n", pidwidth, "PID", "TTY", "STAT", "TIME", "COMMAND");
+    row[width] = 0;
+    printf("%s", row);
     for (i = 0; i < count; ++i)
     {
       timeformat(cputime, stat[i]->utime + stat[i]->stime, false);
-      printf("%*d %-8s %-6s %4s %s\n", pidwidth, stat[i]->pid, stat[i]->tty, stat[i]->stat, cputime, stat[i]->command);
+      sprintf(row, "%*d %-8s %-6s %4s %s\n", pidwidth, stat[i]->pid, stat[i]->tty, stat[i]->stat, cputime, stat[i]->command);
+      row[width] = 0;
+      printf("%s", row);
     }
   }
   else
   {
-    printf("%*s %-8s %8s %s\n", pidwidth, "PID", "TTY", "TIME", "CMD");
+    sprintf(row, "%*s %-8s %8s %s\n", pidwidth, "PID", "TTY", "TIME", "CMD");
+    row[width] = 0;
+    printf("%s", row);
     for (i = 0; i < count; ++i)
     {
       timeformat(cputime, stat[i]->utime + stat[i]->stime, true);
-      printf("%*d %-8s %8s %s\n", pidwidth, stat[i]->pid, stat[i]->tty, cputime, stat[i]->cmd);
+      sprintf(row, "%*d %-8s %8s %s\n", pidwidth, stat[i]->pid, stat[i]->tty, cputime, stat[i]->cmd);
+      row[width] = 0;
+      printf("%s", row);
     }
   }
 }
