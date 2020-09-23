@@ -171,9 +171,9 @@ void draw_header()
   upmins = upmins % 60;
 
   if (uphours)
-    pos += sprintf(upstr + pos, "%2d:%2d", uphours, upmins);
+    pos += sprintf(upstr + pos, "%2ld:%2ld", uphours, upmins);
   else
-    pos += sprintf(upstr + pos, "%d min", upmins);
+    pos += sprintf(upstr + pos, "%ld min", upmins);
 
   // loadavg 구함
   fp = fopen("/proc/loadavg", "r");
@@ -379,7 +379,7 @@ void readproc()
     else
       sprintf(cur->username, "%d", st.st_uid);
     // 3번째 필드까지 읽음
-    fscanf(fp, "%d (%[^)]%*c%s", &cur->pid, cur->command, &cur->stat);
+    fscanf(fp, "%d (%[^)]%*c%s", &cur->pid, cur->command, cur->stat);
 
     // (14) utime, (15)stime 읽음
     for (i = 0; i < 11; i++)
@@ -415,7 +415,7 @@ void readproc()
     {
       long secs = uptime() - (starttime / (sysconf(_SC_CLK_TCK)));
       int mins = secs / 60;
-      sprintf(cur->time, "%2d:%2d", mins % 60, secs % 60);
+      sprintf(cur->time, "%2d:%2ld", mins % 60, secs % 60);
     }
 
     proccount++;

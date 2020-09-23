@@ -121,7 +121,7 @@ void print_ps(bool aflag, bool uflag, bool xflag)
         strftime(start, 64, "%H:%M", starttm);
       else
         strftime(start, 64, "%b%d", starttm);
-      sprintf(row, "%-8s %*d %4.1lf %4.1lf %6d %5d %-8s %-4s %-5s %6s %s\n",
+      sprintf(row, "%-8s %*d %4.1lf %4.1lf %6ld %5ld %-8s %-4s %-5s %6s %s\n",
               stat[i]->username,                                                                         // USER
               pidwidth, stat[i]->pid,                                                                    // PID
               floor(cpupercent(uptime(), stat[i]->utime, stat[i]->stime, stat[i]->starttime) * 10) / 10, // %CPU
@@ -220,7 +220,7 @@ void getstat(procstat_t *result, const char *pid)
 
   fp = fopen(tmp, "r");
   // 3번째 필드까지 읽음
-  fscanf(fp, "%d (%[^)]%*c%s", &result->pid, result->cmd, &result->stat);
+  fscanf(fp, "%d (%[^)])%s", &result->pid, result->cmd, result->stat);
 
   // Lock State 구함
   getstatus(tmp, pid, "VmLck");
@@ -274,7 +274,7 @@ void getstat(procstat_t *result, const char *pid)
 
   // (22) starttime
   for (i = 0; i < 2; i++)
-    fscanf(fp, "%d", &result->starttime);
+    fscanf(fp, "%ld", &result->starttime);
 
   // nice값 비교후 stat 추가
   if (result->nice < 0)
